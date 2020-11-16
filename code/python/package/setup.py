@@ -8,7 +8,7 @@ classifiers = """\
 Development Status :: 5 - Testing/Beta
 Intended Audience :: PiModules Product Developers
 License :: GNU General Public License Version 3
-Programming Language :: Python >= 2.7
+Programming Language :: Python >= 3
 Topic :: PiModules(R)
 Topic :: PiModules(R) Products Python Package
 Operating System :: Linux (Raspbian)

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 """
 
@@ -165,9 +165,8 @@ group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-d", "--debug", help="Keep in the foreground, do not daemonize", action="store_true", default=False)
 group.add_argument("-p", "--pid-file", help="PID file")
 args = parser.parse_args()
-	
+
 sd = fssd(args.pid_file, args.xml_config, {'info':logging.INFO, 'debug':logging.DEBUG}[args.log_level])
 
 # the argument to the start method is opposite of debug
 sd.start(not args.debug)
-
