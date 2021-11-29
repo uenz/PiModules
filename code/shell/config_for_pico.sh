@@ -10,7 +10,7 @@ set -e
 echo '--- update'
 apt-get update
 echo '--- install some packages'
-apt-get install -y python-dev python-pip python-serial python-smbus python-jinja2 wiringpi
+apt-get install -y python-dev python-pip python-serial python-smbus python-jinja2 # wiringpi
 
 echo '--- pip install psutil'
 pip install psutil
