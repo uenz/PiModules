@@ -28,6 +28,6 @@ setup(name='pimodules',
       author_email='mike.ray@btinternet.com',
       url='http://pimodules.com',
       platforms=['POSIX'],
-      classifiers = filter(None, classifiers.split("\n")),
+      classifiers = list(filter(None, classifiers.split("\n"))),
       packages=['pimodules'],
       )
