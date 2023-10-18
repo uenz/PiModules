@@ -15,7 +15,7 @@ Operating System :: Linux (Raspbian)
 """
 
 
-from distutils.core import setup
+from setuptools import setup
 
 doclines = __doc__.split("\n")
 
