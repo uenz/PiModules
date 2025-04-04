@@ -1,0 +1,4 @@
+fake-rpi
+xmltodict
+jinja2
+rpi-lgpio
