@@ -15,7 +15,11 @@ else:
 from pimodules import configuration
 from pimodules.alerts import sendEmail
 from pimodules.daemon import Daemon
-import RPi.GPIO as GPIO
+from gpiozero import Button, LED, Device
+from gpiozero.pins.rpigpio import RPiGPIOFactory
+from gpiozero.pins.lgpio import LGPIOFactory
+from gpiozero.pins.pigpio import PiGPIOFactory
+from gpiozero.pins.native import NativeFactory
 import socket
 import xmltodict
 import argparse
@@ -25,6 +29,7 @@ import time
 import atexit
 import signal
 import os
+import threading
 """
 
 PiModules(R) UPS PIco file-safe shutdown daemon.
@@ -32,10 +37,14 @@ PiModules(R) UPS PIco file-safe shutdown daemon.
 """
 
 
-CLOCK_PIN = 27
-PULSE_PIN = 22
-BOUNCE_TIME = 30
+CLOCK_PIN = 'GPIO27'
+PULSE_PIN = 'GPIO22'
+BOUNCE_TIME = 0 #30.0/1000.0
 
+#Device.pin_factory = RPiGPIOFactory()   # rpigpio
+Device.pin_factory = LGPIOFactory()     # lgpio
+# Device.pin_factory = PiGPIOFactory()    # pigpio
+# Device.pin_factory = NativeFactory()    # native
 
 class fssd(Daemon):
     def __init__(self, pidfile, xmlconfig, loglevel=logging.NOTSET):
@@ -70,7 +79,8 @@ class fssd(Daemon):
         self.mail_sent = False
 
         # first interrupt on isr pin will start pulse high
-        self.sqwave = True
+        self.sqwave = False
+        self.lock = threading.Lock()
 
     def setup(self):
         """
@@ -82,43 +92,65 @@ class fssd(Daemon):
         So it is called in the over-ridden run method.
         """
 
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
-        GPIO.setup(CLOCK_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(PULSE_PIN, GPIO.OUT, initial=self.sqwave)
-        GPIO.add_event_detect(CLOCK_PIN, GPIO.FALLING, callback=self.isr, bouncetime=BOUNCE_TIME)
 
-    def isr(self, channel):
+        ## GPIO.setup(CLOCK_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        self.clock_pin=Button(CLOCK_PIN,pull_up=True,bounce_time=BOUNCE_TIME)
+        ## GPIO.setup(PULSE_PIN, GPIO.OUT, initial=self.sqwave)
+        self.pulse_pin=LED(PULSE_PIN,initial_value=self.sqwave)
+        print(f'pulse pin {self.pulse_pin.is_lit}')
+        ## GPIO.add_event_detect(CLOCK_PIN, GPIO.FALLING, callback=self.isr, bouncetime=BOUNCE_TIME)
+        self.clock_pin.when_pressed=self.isr
+
+    def isr(self):
         """
         GPIO interrupt service routine
         """
-        # This test is here because the user *might* have another HAT plugged in or another circuit that produces a
-        # falling-edge signal on another GPIO pin.
-        if channel != CLOCK_PIN:
-            return
+        ## This test is here because the user *might* have another HAT plugged in or another circuit that produces a
+        ## falling-edge signal on another GPIO pin.
+        ## if channel != CLOCK_PIN:
+        ##    return
+        print('irq')
+        with self.lock:
+            print('irq - lock')
+            # we can get the state of a pin with GPIO.input even when it is currently configured as an output
+            #self.sqwave = not GPIO.input(PULSE_PIN)
+            print(f'{self.sqwave}')
+            self.sqwave = not self.pulse_pin.is_lit
+            print(f'{self.sqwave}')
 
-        # we can get the state of a pin with GPIO.input even when it is currently configured as an output
-        self.sqwave = not GPIO.input(PULSE_PIN)
+            # set pulse pin low before changing it to input to look for shutdown signal
+            ## GPIO.output(PULSE_PIN, False)
+            self.pulse_pin.off()
+            self.pulse_pin.close()
+            ## GPIO.setup(PULSE_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+#            self.pulse_pin=Button(PULSE_PIN,pull_up=True)
+            # if not GPIO.input(PULSE_PIN):
+#            if self.pulse_pin.is_pressed:            
+                # disable irq to prevent multiple mails
+                ## GPIO.remove_event_detect(CLOCK_PIN)
+#                self.clock_pin.when_pressed=None
+#                self.clock_pin.close()
+#                print('irq - button not pressed')
+                # pin is low, this is shutdown signal from pico
+#                self.counter += 1
+#                self.log.warning("Lost power supply, Pi will shutdown")
+#                if self.mail_sent == False:
+#                    self.mail_sent = True
+#                    self.alert_email()
+#                time.sleep(2)
+#                os.system('/sbin/shutdown -h now')
+#            else:
+#                print('irq - button not pressed')
+#                self.counter = 0
 
-        # set pulse pin low before changing it to input to look for shutdown signal
-        GPIO.output(PULSE_PIN, False)
-        GPIO.setup(PULSE_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        if not GPIO.input(PULSE_PIN):
-            # disable irq to prevent multiple mails
-            GPIO.remove_event_detect(CLOCK_PIN)
-            # pin is low, this is shutdown signal from pico
-            self.counter += 1
-            self.log.warning("Lost power supply, Pi will shutdown")
-            if self.mail_sent == False:
-                self.mail_sent = True
-                self.alert_email()
-            time.sleep(2)
-            os.system('/sbin/shutdown -h now')
-        else:
-            self.counter = 0
+            # change pulse pin back to output with flipped state
+            ## GPIO.setup(PULSE_PIN, GPIO.OUT, initial=self.sqwave)
+            self.pulse_pin.close()
+            self.pulse_pin=LED(PULSE_PIN,initial_value=self.sqwave)
+            print(f'pulse pin {self.pulse_pin.is_lit}')
+            print(f'irq - lock release {self.sqwave}')
+            print('irq - out')
 
-        # change pulse pin back to output with flipped state
-        GPIO.setup(PULSE_PIN, GPIO.OUT, initial=self.sqwave)
 
     def sigcatch(self, signum, frame):
         """
@@ -135,8 +167,13 @@ class fssd(Daemon):
 
         self.log.debug("Cleanup")
         self.log.info("Stopped")
-        GPIO.cleanup()
+        ## GPIO.cleanup()
+        try:
+         self.pulse_pin.close()
+         self.clock_pin.close()
 
+        finally:
+          pass
     def alert_email(self):
         # emailserver, username, port, security, fromAddr, toAddr, b64Password, msgSubjectTemplate, msgBodyTemplate
         try:
@@ -184,9 +221,8 @@ if __name__ == "__main__":
                     action="store_true", default=False)
     group.add_argument("-p", "--pid-file", help="PID file")
     args = parser.parse_args()
-
+    print("args")
     sd = fssd(args.pid_file, args.xml_config, {
             'info': logging.INFO, 'debug': logging.DEBUG}[args.log_level])
-
     # the argument to the start method is opposite of debug
     sd.start(not args.debug)
