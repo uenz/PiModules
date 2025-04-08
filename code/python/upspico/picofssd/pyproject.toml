@@ -3,6 +3,12 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
+dependencies = [
+    'fake-rpi; os_name != "linux"',
+    'xmltodict',
+    'jinja2',
+    'rpi-lgpio; os_name == "linux"',
+]
 name = "picofssd"
 version = "0.2.dev1"
 description = "UPSPIco file-safe shutdown daemon"
@@ -17,7 +23,6 @@ classifiers = [
     "Topic :: UPS PIco support daemon",
     "Operating System :: Linux (Raspbian)",
 ]
-dependencies = ["fake-rpi", "xmltodict", "jinja2", "rpi-lgpio"]
 
 [project.urls]
 homepage = "http://pimodules.com"
