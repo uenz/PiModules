@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+dependencies = [
+    'fake-rpi; os_name != "linux"',
+    'xmltodict',
+    'jinja2',
+    'rpi-lgpio; os_name == "linux"',
+]
+name = "picofssd"
+version = "0.2.dev1"
+description = "UPSPIco file-safe shutdown daemon"
+readme = "README.txt"
+license = "GPL-3.0-or-later"
+authors = [{ name = "Mike Ray", email = "mike.ray@btinternet.com" }]
+classifiers = [
+    "Development Status :: 5 - Testing/Beta",
+    "Intended Audience :: PiModules UPS PiCo Product developers and partners (change to customers when published)",
+    "Programming Language :: Python >= 2.7",
+    "Topic :: PiModules(R)",
+    "Topic :: UPS PIco support daemon",
+    "Operating System :: Linux (Raspbian)",
+]
+
+[project.urls]
+homepage = "http://pimodules.com"
+
+[tool.setuptools]
+packages = ["scripts"]
+
+[tool.setuptools.data-files]
+"." = ["scripts/picofssd.py", "scripts/picofssdxmlconfig"]
+
+[project.scripts]
+picofssd = "scripts.picofssd:main"

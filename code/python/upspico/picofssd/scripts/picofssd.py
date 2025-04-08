@@ -1,21 +1,20 @@
-#!/usr/bin/python3
 
-import sys
+#!/usr/bin/python
 
-if (sys.platform == "linux") or (sys.platform == "linux2"):
-    pass
-else:
-    # Replace libraries by fake ones
-    import fake_rpi
+"""
 
-    sys.modules['RPi'] = fake_rpi.RPi     # Fake RPi
-    sys.modules['RPi.GPIO'] = fake_rpi.RPi.GPIO  # Fake GPIO
-    sys.modules['smbus'] = fake_rpi.smbus  # Fake smbus (I2C)
+PiModules(R) UPS PIco file-safe shutdown daemon.
 
-from pimodules import configuration
-from pimodules.alerts import sendEmail
-from pimodules.daemon import Daemon
-import RPi.GPIO as GPIO
+"""
+import sys  # noqa
+print(sys.platform)
+if sys.platform!="linux": # noqa
+  print("Faking libraries")
+  import fake_rpi  # noqa
+  sys.modules['RPi'] = fake_rpi.RPi      # noqa Fake RPi
+  sys.modules['RPi.GPIO'] = fake_rpi.RPi.GPIO   # noqa Fake GPIO
+  sys.modules['smbus'] = fake_rpi.smbus   # noqa Fake smbus (I2C)
+
 import socket
 import xmltodict
 import argparse
@@ -25,11 +24,10 @@ import time
 import atexit
 import signal
 import os
-"""
-
-PiModules(R) UPS PIco file-safe shutdown daemon.
-
-"""
+import RPi.GPIO as GPIO
+from pimodules.daemon import Daemon
+from pimodules.alerts import sendEmail
+from pimodules import configuration
 
 
 CLOCK_PIN = 27
@@ -43,23 +41,24 @@ class fssd(Daemon):
         self.loglevel = loglevel
         self.log = logging.getLogger(__name__)
         self.log.setLevel(self.loglevel)
-        self.log.setLevel(logging.DEBUG)
-        if (sys.platform == "linux") or (sys.platform == "linux2"):
+        if sys.platform == "Linux":
             handler = logging.handlers.SysLogHandler(address='/dev/log')
         else:
             handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter('%(module)s[%(process)s]: <%(levelname)s>: %(message)s')
+        formatter = logging.Formatter(
+            '%(module)s[%(process)s]: <%(levelname)s>: %(message)s')
         handler.setFormatter(formatter)
         self.log.addHandler(handler)
 
         try:
             self.xmlconfig = xmlconfig
-            with open(self.xmlconfig, 'rb') as fi:
-                self.config = xmltodict.parse(fi)
+            with open(self.xmlconfig, 'rt', encoding='utf-8') as fi:
+                self.config = xmltodict.parse(fi.read())
         except IOError as e:
             self.log.warning(
                 "Failed to load XML config file, loading defaults. Alerts will be disabled")
-            self.config = xmltodict.parse(configuration.DEFAULT_FSSD_XML_CONFIG)
+            self.config = xmltodict.parse(
+                configuration.DEFAULT_FSSD_XML_CONFIG)
 
         self.config = self.config['root']['fssd:config']['fssd:alerts']['fssd:email']
         self.config['fssd:enabled'] = (self.config['fssd:enabled'] == 'True')
@@ -67,7 +66,6 @@ class fssd(Daemon):
         signal.signal(signal.SIGTERM, self.sigcatch)
 
         self.counter = 0
-        self.mail_sent = False
 
         # first interrupt on isr pin will start pulse high
         self.sqwave = True
@@ -86,7 +84,8 @@ class fssd(Daemon):
         GPIO.setwarnings(False)
         GPIO.setup(CLOCK_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(PULSE_PIN, GPIO.OUT, initial=self.sqwave)
-        GPIO.add_event_detect(CLOCK_PIN, GPIO.FALLING, callback=self.isr, bouncetime=BOUNCE_TIME)
+        GPIO.add_event_detect(CLOCK_PIN, GPIO.FALLING,
+                              callback=self.isr, bouncetime=BOUNCE_TIME)
 
     def isr(self, channel):
         """
@@ -104,14 +103,10 @@ class fssd(Daemon):
         GPIO.output(PULSE_PIN, False)
         GPIO.setup(PULSE_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         if not GPIO.input(PULSE_PIN):
-            # disable irq to prevent multiple mails
-            GPIO.remove_event_detect(CLOCK_PIN)
             # pin is low, this is shutdown signal from pico
             self.counter += 1
             self.log.warning("Lost power supply, Pi will shutdown")
-            if self.mail_sent == False:
-                self.mail_sent = True
-                self.alert_email()
+            self.alert_email()
             time.sleep(2)
             os.system('/sbin/shutdown -h now')
         else:
@@ -149,14 +144,17 @@ class fssd(Daemon):
                       self.config['fssd:sender-password'], self.config['fssd:subject-template'],
                       self.config['fssd:body-template'])
         except socket.error as e:
-            self.log.error(format("Exception in alert_email: %d, %s" % (e.errno, e.strerror)))
+            self.log.error(
+                format("Exception in alert_email: %d, %s" % (e.errno, e.strerror)))
         except:
-            self.log.error("Unexpected error in alert_email:", sys.exc_info()[0])
+            self.log.error("Unexpected error in alert_email:",
+                           sys.exc_info()[0])
 
     def run(self):
         """
         Super-class overloaded run method.
         """
+
         self.log.info("Started")
         self.log.debug(self.config['fssd:enabled'])
         self.log.debug(self.config['fssd:server'])
@@ -172,21 +170,22 @@ class fssd(Daemon):
         while True:
             time.sleep(5)
 
-if __name__ == "__main__":
-    # parse the command-line
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-l', '--log-level', help="Log level, 'info' or 'debug'",
-                        default='info', choices=['info', 'debug'])
-    parser.add_argument("-x", "--xml-config", help="XML config file",
-                        default='picofssd.xml', required=True)
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("-d", "--debug", help="Keep in the foreground, do not daemonize",
-                    action="store_true", default=False)
-    group.add_argument("-p", "--pid-file", help="PID file")
-    args = parser.parse_args()
 
-    sd = fssd(args.pid_file, args.xml_config, {
-            'info': logging.INFO, 'debug': logging.DEBUG}[args.log_level])
+# parse the command-line
+parser = argparse.ArgumentParser()
+parser.add_argument('-l', '--log-level', help="Log level, 'info' or 'debug'",
+                    default='info', choices=['info', 'debug'])
+parser.add_argument("-x", "--xml-config", help="XML config file",
+                    default='picofssd.xml', required=True)
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument("-d", "--debug", help="Keep in the foreground, do not daemonize",
+                   action="store_true", default=False)
+group.add_argument("-p", "--pid-file", help="PID file")
+args = parser.parse_args()
+print(args)
+print(args.xml_config)
+sd = fssd(args.pid_file, args.xml_config, {
+          'info': logging.INFO, 'debug': logging.DEBUG}[args.log_level])
 
-    # the argument to the start method is opposite of debug
-    sd.start(not args.debug)
+# the argument to the start method is opposite of debug
+sd.start(not args.debug)
