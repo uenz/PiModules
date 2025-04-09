@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 dependencies = [
-    'fake-rpi; os_name != "linux"',
+    'fake-rpi; os_name != "Linux"',
     'xmltodict',
     'jinja2',
-    'rpi-lgpio; os_name == "linux"',
+    'rpi-lgpio; os_name == "Linux"',
 ]
 name = "picofssd"
 version = "0.2.dev1"
