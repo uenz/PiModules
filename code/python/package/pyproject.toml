@@ -7,7 +7,7 @@ name = "pimodules"
 version = "0.1.dev0"
 description = "UPSPIco file-safe shutdown daemon"
 readme = "README.txt"
-license = "GPL-3.0-or-later"
+license = {text="GPL-3.0-or-later"}
 authors = [{ name = "Mike Ray", email = "mike.ray@btinternet.com" }]
 classifiers = [
     "Development Status :: 5 - Testing/Beta",
